@@ -117,10 +117,10 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
           })
         );
 
-        // If Canvas data exists, merge with syllabus (Syllabus fills gaps)
-        if (categories.length > 0) {
+        // If Canvas data exists in setupCategories, merge with syllabus (Syllabus fills gaps)
+        if (setupCategories.length > 0) {
           const mergedCategories = mergeSyllabusWithCanvas(
-            categories,
+            setupCategories,  // Use setupCategories (Canvas data)
             parsedCategories
           );
           setSetupCategories(mergedCategories);
@@ -152,22 +152,148 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
     }
   };
 
+  // Normalize category name for fuzzy matching
+  const normalizeCategoryName = (name: string): string => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ')           // Multiple spaces -> single space
+      .replace(/[^a-z0-9\s]/g, '')    // Remove special chars (hyphens, etc.)
+      .replace(/\s/g, '');             // Remove all spaces for comparison
+  };
+
+  // Extract key terms from category name
+  const extractKeyTerms = (name: string): string[] => {
+    const normalized = name.toLowerCase().trim();
+    
+    // Common words to ignore
+    const stopWords = ['the', 'and', 'or', 'a', 'an', 'of', 'in', 'for', 'to'];
+    
+    // Split into words and filter
+    const words = normalized
+      .split(/[\s\-_]+/)
+      .filter(w => w.length > 2 && !stopWords.includes(w));
+    
+    return words;
+  };
+
+  // Check if two category names are similar (fuzzy match)
+  const isSimilarCategory = (name1: string, name2: string): boolean => {
+    const norm1 = normalizeCategoryName(name1);
+    const norm2 = normalizeCategoryName(name2);
+    
+    // Exact match after normalization
+    if (norm1 === norm2) return true;
+    
+    // Extract key terms from both names
+    const terms1 = extractKeyTerms(name1);
+    const terms2 = extractKeyTerms(name2);
+    
+    // Check for core category keywords
+    const categoryKeywords = {
+      'exam': ['exam', 'test', 'midterm', 'final'],
+      'quiz': ['quiz', 'quizzes'],
+      'lab': ['lab', 'labs', 'laboratory'],
+      'homework': ['homework', 'hw', 'assignment', 'assignments'],
+      'project': ['project', 'projects'],
+      'attendance': ['attendance', 'participation'],
+      'zybooks': ['zybooks', 'zybook'],
+    };
+    
+    // Find category types for each name
+    let type1: string | null = null;
+    let type2: string | null = null;
+    
+    for (const [key, variations] of Object.entries(categoryKeywords)) {
+      if (variations.some(v => terms1.some(t => t.includes(v) || v.includes(t)))) {
+        type1 = key;
+      }
+      if (variations.some(v => terms2.some(t => t.includes(v) || v.includes(t)))) {
+        type2 = key;
+      }
+    }
+    
+    // If both have the same category type, they're similar
+    if (type1 && type2 && type1 === type2) {
+      console.log(`   🎯 Category type match: "${name1}" ≈ "${name2}" (${type1})`);
+      return true;
+    }
+    
+    // Check for significant word overlap
+    const commonTerms = terms1.filter(t1 => 
+      terms2.some(t2 => t1.includes(t2) || t2.includes(t1))
+    );
+    
+    // If they share 50%+ of terms, they're similar
+    const minTerms = Math.min(terms1.length, terms2.length);
+    if (minTerms > 0 && commonTerms.length >= minTerms * 0.5) {
+      console.log(`   🎯 Term overlap match: "${name1}" ≈ "${name2}" (${commonTerms.join(', ')})`);
+      return true;
+    }
+    
+    // Check if one contains the other (for simple cases like "Lab" vs "Labs")
+    if (norm1.includes(norm2) || norm2.includes(norm1)) {
+      const minLength = Math.min(norm1.length, norm2.length);
+      const maxLength = Math.max(norm1.length, norm2.length);
+      
+      // Allow if length difference is small (within 2x)
+      if (maxLength <= minLength * 2) {
+        console.log(`   🎯 Substring match: "${name1}" ≈ "${name2}"`);
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
   // Merge syllabus with Canvas data (syllabus fills gaps, doesn't replace)
   const mergeSyllabusWithCanvas = (
     canvasCategories: any[],
     syllabusCategories: any[]
   ) => {
+    console.log("🔍 === MERGE DEBUG START ===");
+    console.log("📘 Canvas Categories:", canvasCategories.map(c => `${c.name} (${c.weight}%)`));
+    console.log("📄 Syllabus Categories:", syllabusCategories.map(c => `${c.name} (${c.weight}%)`));
+    
+    // Check for duplicates in Canvas data itself
+    const canvasWeightSum = canvasCategories.reduce((sum, c) => sum + c.weight, 0);
+    if (canvasWeightSum > 100) {
+      console.warn(`⚠️  Canvas categories already exceed 100%! Total: ${canvasWeightSum}%`);
+      console.warn("This means Canvas has duplicate assignment groups. Deduplicating...");
+      
+      // Deduplicate Canvas categories first
+      const deduplicatedCanvas: any[] = [];
+      const seenNames = new Set<string>();
+      
+      canvasCategories.forEach((cat) => {
+        const normalizedName = normalizeCategoryName(cat.name);
+        if (!seenNames.has(normalizedName)) {
+          seenNames.add(normalizedName);
+          deduplicatedCanvas.push(cat);
+        } else {
+          console.warn(`   Skipping duplicate Canvas category: "${cat.name}"`);
+        }
+      });
+      
+      const deduplicatedSum = deduplicatedCanvas.reduce((sum, c) => sum + c.weight, 0);
+      console.log(`✅ Deduplicated Canvas: ${canvasCategories.length} → ${deduplicatedCanvas.length} categories`);
+      console.log(`✅ New total weight: ${deduplicatedSum}%`);
+      
+      // Use deduplicated canvas as base
+      canvasCategories = deduplicatedCanvas;
+    }
+    
     const merged = [...canvasCategories];
 
     syllabusCategories.forEach((sylCat) => {
-      // Check if category exists in Canvas
-      const existingIndex = merged.findIndex(
-        (canvasCat) =>
-          canvasCat.name.toLowerCase() === sylCat.name.toLowerCase()
+      // Check if similar category exists in Canvas
+      const existingIndex = merged.findIndex((canvasCat) =>
+        isSimilarCategory(canvasCat.name, sylCat.name)
       );
 
       if (existingIndex === -1) {
         // Category doesn't exist in Canvas - ADD IT (보완)
+        console.log(`➕ Adding new category: ${sylCat.name} (${sylCat.weight}%)`);
         merged.push({
           id: Math.max(...merged.map((c) => c.id), 0) + 1,
           name: sylCat.name,
@@ -176,15 +302,25 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
         });
       } else {
         // Category exists - UPDATE count if Canvas has fewer items
+        // DON'T add weight again (Canvas already has the weight)
         const canvasCat = merged[existingIndex];
+        console.log(`🔄 Matched: "${sylCat.name}" with "${canvasCat.name}" - Keeping Canvas weight (${canvasCat.weight}%)`);
         if (canvasCat.count < sylCat.count) {
           merged[existingIndex] = {
             ...canvasCat,
             count: sylCat.count, // Use syllabus count if higher
+            // Keep Canvas weight, don't add syllabus weight
           };
+          console.log(`   📊 Updated count: ${canvasCat.count} → ${sylCat.count}`);
         }
+        // If Canvas count >= syllabus count, keep Canvas data as-is
       }
     });
+
+    const totalWeight = merged.reduce((sum, c) => sum + c.weight, 0);
+    console.log("✅ Merged Result:", merged.map(c => `${c.name} (${c.weight}%)`));
+    console.log(`📊 Total Weight: ${totalWeight}%`);
+    console.log("🔍 === MERGE DEBUG END ===\n");
 
     return merged;
   };

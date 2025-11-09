@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useCategoryStore } from "@/app/stores/useCategoryStore";
+import { useSetupStore } from "@/app/stores/useSetupStore";
 import { useAuthStore } from "@/app/stores/useAuthStore";
 import { useCourseAssignments } from "@/hooks/useCanvasApi";
 import { ApiError } from "@/lib/api/client";
@@ -31,6 +32,7 @@ export default function CourseDashboardPage() {
   } | null>(null);
 
   const setCategories = useCategoryStore((state) => state.setCategories);
+  const setSetupCategories = useSetupStore((state) => state.setSetupCategories);
   const { isAuthenticated } = useAuthStore();
 
   // Use SWR for data fetching
@@ -132,6 +134,17 @@ export default function CourseDashboardPage() {
 
       console.log("Formatted categories:", formattedCategories); // Debug log
       setCategories(formattedCategories);
+      
+      // Also sync to setupCategories for syllabus merge
+      const setupCategoriesData = categories.map((cat: any, index: number) => ({
+        id: index + 1,
+        name: cat.name,
+        weight: cat.weight || 0,
+        count: cat.assignments?.length || 0,
+      }));
+      console.log("Setup categories synced:", setupCategoriesData); // Debug log
+      setSetupCategories(setupCategoriesData);
+      
       setToast({
         message: "Course data loaded successfully!",
         type: "success",
@@ -143,7 +156,7 @@ export default function CourseDashboardPage() {
         type: "warning",
       });
     }
-  }, [categories, isLoading, setCategories]);
+  }, [categories, isLoading, setCategories, setSetupCategories]);
 
   // Show error toast
   useEffect(() => {
