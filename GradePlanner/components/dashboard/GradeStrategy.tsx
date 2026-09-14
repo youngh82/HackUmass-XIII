@@ -66,7 +66,7 @@ export default function GradeStrategy() {
     if (categories.length > 0) {
       calculateTotalDeductiblePoints(categories);
     }
-  }, [currentStrategy]);
+  }, [currentStrategy, categories, calculateTotalDeductiblePoints]);
 
   // Update projected grade when sliders change
   useEffect(() => {

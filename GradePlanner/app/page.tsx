@@ -213,7 +213,7 @@ export default function HomePage() {
               className="link link-btn"
               onClick={() => setShowModal(true)}
             >
-              Don't know how to get an access token?
+              Don&apos;t know how to get an access token?
             </button>
           </div>
           <div className="subhint">

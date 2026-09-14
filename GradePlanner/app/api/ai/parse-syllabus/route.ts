@@ -1,6 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { z } from "zod";
 import pdf from "pdf-parse";
+
+const SyllabusSchema = z.object({
+  categories: z.array(
+    z.object({
+      name: z.string(),
+      // Percent of the final grade; null when the syllabus doesn't state one
+      weight: z.number().nullable(),
+      count: z.number(),
+    })
+  ),
+});
+
+const buildPrompt = (syllabusText: string) => `Extract the grading categories from this course syllabus.
+
+For each category give:
+- name: the category as the syllabus names it (Exams, Homework, Quizzes, Projects, Participation, ...)
+- weight: its percentage of the final grade (0-100), or null if the syllabus doesn't state one
+- count: how many graded items it contains, or 1 if the syllabus doesn't say
+
+Combine items that share a weight into one category. For example, "Midterm 1 and Midterm 2: 15% each" becomes Exams with weight 30 and count 2.
+
+<syllabus>
+${syllabusText}
+</syllabus>`;
 
 // POST /api/ai/parse-syllabus
 // Parses PDF syllabus using Claude API
@@ -16,13 +42,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
     // Extract text from PDF
-    const data = await pdf(buffer);
-    const pdfText = data.text;
+    let pdfText: string;
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      pdfText = (await pdf(buffer)).text;
+    } catch {
+      return NextResponse.json(
+        { error: "Failed to read PDF file. Please ensure it's a valid PDF." },
+        { status: 400 }
+      );
+    }
 
     if (!pdfText || pdfText.trim().length === 0) {
       return NextResponse.json(
@@ -31,76 +61,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`📄 PDF extracted: ${pdfText.length} characters`);
-
-    // Initialize Claude client
-    const anthropic = new Anthropic({
-      apiKey: process.env.CLAUDE_API_KEY,
-    });
-
     if (!process.env.CLAUDE_API_KEY) {
-      console.error("❌ CLAUDE_API_KEY is not set");
+      console.error("CLAUDE_API_KEY is not set");
       return NextResponse.json(
         { error: "AI service not configured. Please set CLAUDE_API_KEY." },
         { status: 500 }
       );
     }
 
-    console.log("🚀 Starting Claude API call with Sonnet 4.5...");
+    const anthropic = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY });
 
-    // Parse with Claude API (Updated to Sonnet 4.5)
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 4096,
-      temperature: 0.3, // Use temperature OR top_p, not both (breaking change in Claude 4)
-      messages: [
-        {
-          role: "user",
-          content: `Extract grading categories from this syllabus and return ONLY a JSON object.
-
-REQUIRED FORMAT:
-{
-  "categories": [
-    {"name": "Exams", "weight": 40, "count": 3},
-    {"name": "Homework", "weight": 30, "count": 10}
-  ]
-}
-
-EXTRACTION RULES:
-1. Find ALL grading categories (Exams, Homework, Quizzes, Projects, Participation, etc.)
-2. Extract weight as percentage (0-100). Use null if not specified.
-3. Extract count of items. Use 1 if not specified.
-4. Combine similar items (e.g., "Midterm 1" + "Midterm 2" → "Exams" with count 2)
-5. Return ONLY the JSON object, no markdown formatting, no explanations.
-
-COMMON PATTERNS TO LOOK FOR:
-- "Exams: 40%" or "Exams (40%)"
-- "3 exams worth 40% of final grade"
-- "Weekly homework: 30%"
-- "Final exam: 25%"
-- "Midterm 1 and Midterm 2: 15% each" → combine as "Exams: 30%, count: 2"
-
-SYLLABUS TEXT:
-${pdfText}
-
-Return the JSON object now:`,
-        },
-      ],
+    const message = await anthropic.beta.messages.parse({
+      model: "claude-opus-5",
+      max_tokens: 16000,
+      // If a safety classifier declines, re-run on Anthropic's recommended
+      // fallback model instead of failing the upload
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { format: zodOutputFormat(SyllabusSchema) },
+      messages: [{ role: "user", content: buildPrompt(pdfText) }],
     });
 
-    // Extract JSON from response
-    const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
-
-    console.log(
-      `🤖 Claude Sonnet 4.5 response: ${responseText.substring(0, 200)}...`
-    );
-    console.log(`📊 Stop reason: ${message.stop_reason}`);
-
-    // Handle refusal stop reason (new in Claude 4)
-    // Note: TypeScript types may not be updated yet, but this is a valid stop_reason in Claude 4
-    if (message.stop_reason === ("refusal" as any)) {
-      console.error("❌ Claude refused to process the request");
+    if (message.stop_reason === "refusal") {
       return NextResponse.json(
         {
           error:
@@ -110,9 +92,7 @@ Return the JSON object now:`,
       );
     }
 
-    // Handle context window exceeded (Sonnet 4.5 specific)
-    if (message.stop_reason === ("model_context_window_exceeded" as any)) {
-      console.error("❌ PDF is too large for Claude to process");
+    if (message.stop_reason === "model_context_window_exceeded") {
       return NextResponse.json(
         {
           error:
@@ -122,46 +102,16 @@ Return the JSON object now:`,
       );
     }
 
-    // Try to parse JSON from response
-    // Remove markdown code blocks if present
-    let cleanedResponse = responseText.trim();
-    if (cleanedResponse.startsWith("```json")) {
-      cleanedResponse = cleanedResponse
-        .replace(/^```json\n?/, "")
-        .replace(/\n?```$/, "");
-    } else if (cleanedResponse.startsWith("```")) {
-      cleanedResponse = cleanedResponse
-        .replace(/^```\n?/, "")
-        .replace(/\n?```$/, "");
-    }
-
-    const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error("❌ Failed to extract JSON from response:", responseText);
+    const syllabusData = message.parsed_output;
+    if (!syllabusData) {
       return NextResponse.json(
         {
           error:
             "AI could not parse syllabus format. Please try a different file or enter manually.",
-          rawResponse: responseText.substring(0, 500),
         },
         { status: 422 }
       );
     }
-
-    const syllabusData = JSON.parse(jsonMatch[0]);
-
-    // Validate parsed data
-    if (!syllabusData.categories || !Array.isArray(syllabusData.categories)) {
-      console.error("❌ Invalid categories format:", syllabusData);
-      return NextResponse.json(
-        { error: "Invalid syllabus data format" },
-        { status: 422 }
-      );
-    }
-
-    console.log(
-      `✅ Successfully parsed ${syllabusData.categories.length} categories`
-    );
 
     return NextResponse.json({
       success: true,
@@ -171,20 +121,17 @@ Return the JSON object now:`,
   } catch (error) {
     console.error("Syllabus parsing error:", error);
 
-    // More specific error messages
-    if (error instanceof Error) {
-      if (error.message.includes("API key")) {
-        return NextResponse.json(
-          { error: "AI API key is invalid or missing" },
-          { status: 500 }
-        );
-      }
-      if (error.message.includes("PDF")) {
-        return NextResponse.json(
-          { error: "Failed to read PDF file. Please ensure it's a valid PDF." },
-          { status: 400 }
-        );
-      }
+    if (error instanceof Anthropic.AuthenticationError) {
+      return NextResponse.json(
+        { error: "AI API key is invalid or missing" },
+        { status: 500 }
+      );
+    }
+    if (error instanceof Anthropic.RateLimitError) {
+      return NextResponse.json(
+        { error: "AI service is busy. Please try again in a minute." },
+        { status: 429 }
+      );
     }
 
     return NextResponse.json(

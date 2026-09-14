@@ -232,12 +232,7 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
     }
 
     // If both have the same category type, they're similar
-    if (type1 && type2 && type1 === type2) {
-      console.log(
-        `   🎯 Category type match: "${name1}" ≈ "${name2}" (${type1})`
-      );
-      return true;
-    }
+    if (type1 && type2 && type1 === type2) return true;
 
     // Check for significant word overlap
     const commonTerms = terms1.filter((t1) =>
@@ -246,14 +241,7 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
 
     // If they share 50%+ of terms, they're similar
     const minTerms = Math.min(terms1.length, terms2.length);
-    if (minTerms > 0 && commonTerms.length >= minTerms * 0.5) {
-      console.log(
-        `   🎯 Term overlap match: "${name1}" ≈ "${name2}" (${commonTerms.join(
-          ", "
-        )})`
-      );
-      return true;
-    }
+    if (minTerms > 0 && commonTerms.length >= minTerms * 0.5) return true;
 
     // Check if one contains the other (for simple cases like "Lab" vs "Labs")
     if (norm1.includes(norm2) || norm2.includes(norm1)) {
@@ -261,117 +249,70 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
       const maxLength = Math.max(norm1.length, norm2.length);
 
       // Allow if length difference is small (within 2x)
-      if (maxLength <= minLength * 2) {
-        console.log(`   🎯 Substring match: "${name1}" ≈ "${name2}"`);
-        return true;
-      }
+      if (maxLength <= minLength * 2) return true;
     }
 
     return false;
   };
 
-  // Merge syllabus with Canvas data (syllabus fills gaps, doesn't replace)
+  // Merge syllabus with Canvas data. Canvas categories stay the base (they
+  // hold the real items), but the syllabus is the authority on weights:
+  // Canvas weights are often 0 or only derived from points.
   const mergeSyllabusWithCanvas = (
     canvasCategories: any[],
     syllabusCategories: any[]
   ) => {
-    console.log("🔍 === MERGE DEBUG START ===");
-    console.log(
-      "📘 Canvas Categories:",
-      canvasCategories.map((c) => `${c.name} (${c.weight}%)`)
-    );
-    console.log(
-      "📄 Syllabus Categories:",
-      syllabusCategories.map((c) => `${c.name} (${c.weight}%)`)
-    );
-
-    // Check for duplicates in Canvas data itself
+    // Weights over 100% mean Canvas has duplicated assignment groups
     const canvasWeightSum = canvasCategories.reduce(
       (sum, c) => sum + c.weight,
       0
     );
     if (canvasWeightSum > 100) {
-      console.warn(
-        `⚠️  Canvas categories already exceed 100%! Total: ${canvasWeightSum}%`
-      );
-      console.warn(
-        "This means Canvas has duplicate assignment groups. Deduplicating..."
-      );
-
-      // Deduplicate Canvas categories first
-      const deduplicatedCanvas: any[] = [];
       const seenNames = new Set<string>();
-
-      canvasCategories.forEach((cat) => {
+      canvasCategories = canvasCategories.filter((cat) => {
         const normalizedName = normalizeCategoryName(cat.name);
-        if (!seenNames.has(normalizedName)) {
-          seenNames.add(normalizedName);
-          deduplicatedCanvas.push(cat);
-        } else {
-          console.warn(`   Skipping duplicate Canvas category: "${cat.name}"`);
-        }
+        if (seenNames.has(normalizedName)) return false;
+        seenNames.add(normalizedName);
+        return true;
       });
-
-      const deduplicatedSum = deduplicatedCanvas.reduce(
-        (sum, c) => sum + c.weight,
-        0
-      );
-      console.log(
-        `✅ Deduplicated Canvas: ${canvasCategories.length} → ${deduplicatedCanvas.length} categories`
-      );
-      console.log(`✅ New total weight: ${deduplicatedSum}%`);
-
-      // Use deduplicated canvas as base
-      canvasCategories = deduplicatedCanvas;
     }
 
     const merged = [...canvasCategories];
+    // Canvas categories already given a syllabus weight; a second syllabus
+    // match (e.g. "Midterm" and "Final" both → "Exams") adds to it
+    const weightedFromSyllabus = new Set<number>();
 
     syllabusCategories.forEach((sylCat) => {
-      // Check if similar category exists in Canvas
       const existingIndex = merged.findIndex((canvasCat) =>
         isSimilarCategory(canvasCat.name, sylCat.name)
       );
 
       if (existingIndex === -1) {
-        // Category doesn't exist in Canvas - ADD IT (보완)
-        console.log(
-          `➕ Adding new category: ${sylCat.name} (${sylCat.weight}%)`
-        );
+        // Only in the syllabus - add it
         merged.push({
           id: Math.max(...merged.map((c) => c.id), 0) + 1,
           name: sylCat.name,
           weight: sylCat.weight,
           count: sylCat.count,
         });
-      } else {
-        // Category exists - UPDATE count if Canvas has fewer items
-        // DON'T add weight again (Canvas already has the weight)
-        const canvasCat = merged[existingIndex];
-        console.log(
-          `🔄 Matched: "${sylCat.name}" with "${canvasCat.name}" - Keeping Canvas weight (${canvasCat.weight}%)`
-        );
-        if (canvasCat.count < sylCat.count) {
-          merged[existingIndex] = {
-            ...canvasCat,
-            count: sylCat.count, // Use syllabus count if higher
-            // Keep Canvas weight, don't add syllabus weight
-          };
-          console.log(
-            `   📊 Updated count: ${canvasCat.count} → ${sylCat.count}`
-          );
-        }
-        // If Canvas count >= syllabus count, keep Canvas data as-is
+        return;
       }
-    });
 
-    const totalWeight = merged.reduce((sum, c) => sum + c.weight, 0);
-    console.log(
-      "✅ Merged Result:",
-      merged.map((c) => `${c.name} (${c.weight}%)`)
-    );
-    console.log(`📊 Total Weight: ${totalWeight}%`);
-    console.log("🔍 === MERGE DEBUG END ===\n");
+      const canvasCat = merged[existingIndex];
+      let weight = canvasCat.weight;
+      if (sylCat.weight > 0) {
+        weight = weightedFromSyllabus.has(existingIndex)
+          ? canvasCat.weight + sylCat.weight
+          : sylCat.weight;
+        weightedFromSyllabus.add(existingIndex);
+      }
+
+      merged[existingIndex] = {
+        ...canvasCat,
+        weight,
+        count: Math.max(canvasCat.count, sylCat.count),
+      };
+    });
 
     return merged;
   };

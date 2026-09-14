@@ -99,13 +99,34 @@ export class CanvasApiClient {
   }
 
   /**
+   * Fetch every page of a list endpoint. Canvas returns 10 items per page by
+   * default, so single requests silently truncate longer lists.
+   */
+  private async requestAll<T>(endpoint: string): Promise<T[]> {
+    const separator = endpoint.includes("?") ? "&" : "?";
+    let { data, pagination } = await this.request<T[]>(
+      `${endpoint}${separator}per_page=100`
+    );
+    const all = [...data];
+
+    while (pagination?.next) {
+      // Link header URLs are absolute; request() expects a path under baseUrl
+      ({ data, pagination } = await this.request<T[]>(
+        pagination.next.replace(this.baseUrl, "")
+      ));
+      all.push(...data);
+    }
+
+    return all;
+  }
+
+  /**
    * Get all active courses for the current user
    */
   async getCourses(): Promise<CanvasCourse[]> {
-    const { data } = await this.request<CanvasCourse[]>(
+    return this.requestAll<CanvasCourse>(
       "/courses?enrollment_state=active&include[]=total_students&include[]=term"
     );
-    return data;
   }
 
   /**
@@ -124,20 +145,18 @@ export class CanvasApiClient {
   async getAssignmentGroups(
     courseId: number
   ): Promise<CanvasAssignmentGroup[]> {
-    const { data } = await this.request<CanvasAssignmentGroup[]>(
+    return this.requestAll<CanvasAssignmentGroup>(
       `/courses/${courseId}/assignment_groups?include[]=assignments&include[]=submission`
     );
-    return data;
   }
 
   /**
    * Get all assignments for a course
    */
   async getAssignments(courseId: number): Promise<CanvasAssignment[]> {
-    const { data } = await this.request<CanvasAssignment[]>(
+    return this.requestAll<CanvasAssignment>(
       `/courses/${courseId}/assignments?include[]=submission&order_by=due_at`
     );
-    return data;
   }
 
   /**
@@ -172,21 +191,4 @@ export class CanvasApiClient {
     const { data } = await this.request<CanvasUser>("/users/self/profile");
     return data;
   }
-}
-
-/**
- * Create Canvas API client instance
- */
-export function createCanvasClient(
-  baseUrl?: string,
-  token?: string
-): CanvasApiClient {
-  const apiUrl = baseUrl || process.env.CANVAS_API_URL;
-  const apiToken = token || process.env.CANVAS_ACCESS_TOKEN;
-
-  if (!apiUrl || !apiToken) {
-    throw new Error("Canvas API URL and token are required");
-  }
-
-  return new CanvasApiClient(apiUrl, apiToken);
 }

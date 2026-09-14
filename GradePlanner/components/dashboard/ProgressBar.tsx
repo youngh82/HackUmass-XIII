@@ -36,7 +36,7 @@ export default function ProgressBar() {
     if (categories.length > 0) {
       calculateAllGrades(categories);
     }
-  }, [categories]);
+  }, [categories, calculateAllGrades]);
 
   // Animate progress bar
   useEffect(() => {
@@ -63,6 +63,8 @@ export default function ProgressBar() {
     };
 
     requestAnimationFrame(animate);
+    // animatedProgress is only the starting point; re-running on it would loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxPossibleGrade]);
 
   // Set initial target grade to highest achievable grade
@@ -78,7 +80,9 @@ export default function ProgressBar() {
         setTargetGrade(achievableGrade as TargetGrade);
       }
     }
-  }, [categories.length, maxPossibleGrade]); // Only run when categories are first loaded
+    // Only when data loads; depending on the target would undo the user's pick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories.length, maxPossibleGrade]);
 
   const maxPercentage = Math.min(100, Math.max(0, maxPossibleGrade));
   const targetThreshold = GRADE_MAP[currentTargetGrade];
