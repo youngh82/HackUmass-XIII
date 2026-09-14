@@ -1,7 +1,7 @@
 // SetupModal.tsx - Course Setup Modal
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useSetupStore } from "@/app/stores/useSetupStore";
 import { useCategoryStore } from "@/app/stores/useCategoryStore";
@@ -28,6 +28,17 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
   const setCategories = useCategoryStore((state) => state.setCategories);
   const categories = useCategoryStore((state) => state.categories);
 
+  // Close with Escape; the ref always points at the latest handleClose
+  const closeRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleClose = () => {
@@ -39,6 +50,7 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
     setSyllabusSuggestions([]);
     onClose();
   };
+  closeRef.current = handleClose;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

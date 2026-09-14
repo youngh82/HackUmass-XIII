@@ -46,16 +46,6 @@ export default function CoursesPage() {
   }, [mounted, isAuthenticated, router]);
 
   useEffect(() => {
-    // Show success toast when courses are loaded
-    if (!isLoading && courses.length > 0 && !toast) {
-      setToast({
-        message: `Loaded ${courses.length} course(s)`,
-        type: "success",
-      });
-    }
-  }, [courses, isLoading]);
-
-  useEffect(() => {
     // Show error toast if there's an error
     if (isError && error) {
       const errorMessage =

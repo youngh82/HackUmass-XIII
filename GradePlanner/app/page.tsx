@@ -37,14 +37,20 @@ export default function HomePage() {
     }
   }, [mounted, isAuthenticated, router]);
 
+  // Close the help dialog with Escape
+  useEffect(() => {
+    if (!showModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowModal(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showModal]);
+
   const handleSubmit = async () => {
     const value = token.trim();
     if (!value) {
       setError("Please enter your Canvas access token");
-      setToast({
-        message: "Please enter your Canvas access token",
-        type: "warning",
-      });
       return;
     }
 
@@ -53,7 +59,6 @@ export default function HomePage() {
       setError(
         "Invalid token format. Canvas tokens should be in format: {user_id}~{token}"
       );
-      setToast({ message: "Invalid token format", type: "error" });
       return;
     }
 
@@ -101,7 +106,6 @@ export default function HomePage() {
         }, 500);
       } else {
         setError("Invalid Canvas token. Please check and try again.");
-        setToast({ message: "Invalid Canvas token", type: "error" });
       }
     } catch (err) {
       console.error("Token verification error:", err);
@@ -110,7 +114,6 @@ export default function HomePage() {
           ? err.message
           : "Failed to verify token. Please try again.";
       setError(errorMessage);
-      setToast({ message: errorMessage, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -178,6 +181,7 @@ export default function HomePage() {
 
           {error && (
             <div
+              role="alert"
               style={{
                 color: "#ef4444",
                 fontSize: "14px",
@@ -203,19 +207,30 @@ export default function HomePage() {
           )}
 
           <div className="hint">
-            <span
+            <button
+              type="button"
               id="how"
-              className="link link-cursor"
+              className="link link-btn"
               onClick={() => setShowModal(true)}
             >
               Don't know how to get an access token?
-            </span>
+            </button>
           </div>
           <div className="subhint">
-            Token will never be stored and will only be used for this session.
+            Your token is saved only in this browser and used only to read
+            your Canvas grades. Log out to remove it.
           </div>
         </div>
-        <div className="hero-gradient"></div>
+        <div className="hero-gradient">
+          <div className="hero-copy">
+            <h2>Know exactly what you need on every remaining assignment.</h2>
+            <ul>
+              <li>Pulls your grades straight from Canvas</li>
+              <li>Shows your current, lowest and highest possible grade</li>
+              <li>Plans the score you need on each item to hit your target</li>
+            </ul>
+          </div>
+        </div>
       </section>
 
       {/* Modal */}
@@ -224,9 +239,15 @@ export default function HomePage() {
         className="modal"
         aria-hidden={!showModal}
         role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        onClick={(e) => {
+          // Clicking the backdrop (not the card) closes the dialog
+          if (e.target === e.currentTarget) setShowModal(false);
+        }}
       >
         <div className="card">
-          <h3>How to get an access token</h3>
+          <h3 id="modal-title">How to get an access token</h3>
           <ol className="steps">
             <li>
               <span>
