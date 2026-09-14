@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useSetupStore } from "@/app/stores/useSetupStore";
 import { useCategoryStore } from "@/app/stores/useCategoryStore";
+import { useAuthStore } from "@/app/stores/useAuthStore";
+import { CLAUDE_KEY_HEADER } from "@/lib/ai/apiKey";
 import SetupCategoryCard from "./SetupCategoryCard";
 
 interface SetupModalProps {
@@ -19,6 +21,10 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
   const [syllabusSuggestions, setSyllabusSuggestions] = useState<any[]>([]);
+  const [showKey, setShowKey] = useState(false);
+
+  const claudeApiKey = useAuthStore((state) => state.claudeApiKey);
+  const setClaudeApiKey = useAuthStore((state) => state.setClaudeApiKey);
 
   const setupCategories = useSetupStore((state) => state.setupCategories);
   const addSetupCategory = useSetupStore((state) => state.addSetupCategory);
@@ -107,6 +113,7 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
 
       const response = await fetch("/api/ai/parse-syllabus", {
         method: "POST",
+        headers: claudeApiKey ? { [CLAUDE_KEY_HEADER]: claudeApiKey } : {},
         body: formData,
       });
 
@@ -383,9 +390,58 @@ export default function SetupModal({ isOpen, onClose }: SetupModalProps) {
 
             <div className="modal-body">
               <p className="setup-instruction">
-                Upload your course syllabus PDF for automatic grading category
-                detection using AI, or skip to enter categories manually.
+                Upload your course syllabus PDF and Claude will detect the
+                grading categories, or skip to enter them manually.
               </p>
+
+              <div className="claude-key">
+                <label htmlFor="claudeApiKey" className="claude-key-label">
+                  Your Claude API key
+                </label>
+                <div className="claude-key-row">
+                  <input
+                    id="claudeApiKey"
+                    type={showKey ? "text" : "password"}
+                    className="claude-key-input"
+                    placeholder="sk-ant-..."
+                    value={claudeApiKey ?? ""}
+                    onChange={(e) => setClaudeApiKey(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    disabled={isUploading}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    onClick={() => setShowKey(!showKey)}
+                  >
+                    {showKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <p className="claude-key-hint">
+                  Syllabus import runs on your own key from{" "}
+                  <a
+                    href="https://console.anthropic.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    console.anthropic.com
+                  </a>
+                  . It stays in this browser and is sent only with the upload.
+                  {claudeApiKey && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="claude-key-forget"
+                        onClick={() => setClaudeApiKey(null)}
+                      >
+                        Forget key
+                      </button>
+                    </>
+                  )}
+                </p>
+              </div>
 
               {selectedFile && (
                 <div

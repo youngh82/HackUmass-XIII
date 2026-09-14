@@ -19,7 +19,7 @@ Canvas tells you your current grade. It doesn't tell you what you need on the fi
 - **Works with both Canvas grading modes.** Courses that use weighted assignment groups and courses graded by total points are both calculated the way Canvas does, with items weighted by their point value.
 - **Grade range at a glance.** Current grade, the lowest possible (0 on everything left) and the highest possible (100 on everything left).
 - **Target strategy.** Pick a letter grade to get a required score for each remaining item. Two distribution strategies are available, and you can drag or pin individual sliders while the rest rebalance.
-- **AI syllabus import.** Upload a syllabus PDF and Claude extracts the grading categories, weights and item counts. Syllabus weights fill in what Canvas is missing.
+- **AI syllabus import.** Upload a syllabus PDF with your own Claude API key and Claude extracts the grading categories, weights and item counts. Syllabus weights fill in what Canvas is missing.
 - **Your edits stick.** Scores and categories you change are kept until you explicitly reload from Canvas.
 - **Demo mode** for trying the app without a Canvas account.
 
@@ -71,7 +71,7 @@ flowchart LR
   Client -- "x-canvas-token header" --> Courses
   Client -- "x-canvas-token header" --> Assign
   UI -- "login" --> Verify
-  UI -- "syllabus PDF" --> Parse
+  UI -- "syllabus PDF + visitor's API key" --> Parse
   UI --> Stores --> Calc
   Verify -- "Bearer token" --> Canvas
   Courses -- "Bearer token, all pages" --> Canvas
@@ -141,15 +141,17 @@ Requires Node.js 18 or newer.
 git clone https://github.com/youngh82/HackUmass-XIII.git
 cd HackUmass-XIII/GradePlanner
 npm install
-cp .env.local.example .env.local   # add CLAUDE_API_KEY for syllabus import
+cp .env.local.example .env.local   # optional
 npm run dev
 ```
 
 Open http://localhost:3000, then either paste a Canvas token or click **Try the demo**.
 
+Syllabus import uses each visitor's own [Claude API key](https://console.anthropic.com/), entered in the course setup dialog, so a deployed copy of the app never runs up the operator's bill.
+
 | Variable | Needed for |
 | --- | --- |
-| `CLAUDE_API_KEY` | Syllabus PDF import. Everything else works without it. |
+| `CLAUDE_API_KEY` | Optional, local development only: syllabus import without entering a key in the app. Production builds ignore it. |
 
 The Canvas URL is currently set to UMass Amherst (`app/page.tsx`). Point `CANVAS_BASE_URL` at your institution's `https://<school>.instructure.com/api/v1` to use another school.
 
@@ -181,6 +183,7 @@ Calculations were also checked against real Canvas data during development: for 
 
 - The Canvas token is kept in the browser's `localStorage` and sent only to this app's own API routes, which forward it to Canvas. The server never stores it. **Logout** removes it.
 - A 401 from Canvas on the course list logs you out. A denied single course (for example, one you dropped) shows an explanation and keeps you signed in.
+- A Claude API key entered for syllabus import stays in the same browser storage, is sent only with the upload request, and is used for that one call; the server never stores or logs it. **Logout** removes it too.
 - Syllabus PDFs are sent to the Claude API for extraction and are not stored.
 
 ## Post-hackathon improvements

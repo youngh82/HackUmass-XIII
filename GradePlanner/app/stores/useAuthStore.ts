@@ -6,7 +6,10 @@ interface AuthStore {
   baseUrl: string | null;
   userName: string | null;
   userId: string | null;
+  // The visitor's own key for syllabus import; the app never supplies one
+  claudeApiKey: string | null;
 
+  setClaudeApiKey: (key: string | null) => void;
   setAuth: (
     token: string,
     baseUrl: string,
@@ -25,13 +28,25 @@ export const useAuthStore = create<AuthStore>()(
       baseUrl: null,
       userName: null,
       userId: null,
+      claudeApiKey: null,
+
+      setClaudeApiKey: (key) => {
+        set({ claudeApiKey: key?.trim() || null });
+      },
 
       setAuth: (token, baseUrl, userName, userId) => {
         set({ token, baseUrl, userName, userId });
       },
 
+      // Logging out also forgets the Claude key
       clearAuth: () => {
-        set({ token: null, baseUrl: null, userName: null, userId: null });
+        set({
+          token: null,
+          baseUrl: null,
+          userName: null,
+          userId: null,
+          claudeApiKey: null,
+        });
       },
 
       isAuthenticated: () => {

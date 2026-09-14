@@ -101,6 +101,65 @@
   font-size: 15px;
 }
 
+/* Visitor's own Claude API key for syllabus import */
+.claude-key {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.claude-key-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--txt);
+}
+
+.claude-key-row {
+  display: flex;
+  gap: 8px;
+}
+
+.claude-key-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  background: var(--white);
+  color: var(--txt);
+}
+
+.claude-key-input:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.claude-key-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--txt-muted);
+}
+
+.claude-key-hint a {
+  color: var(--accent);
+}
+
+.claude-key-forget {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* Upload Area */
 .upload-area {
   border: 2px dashed var(--border);

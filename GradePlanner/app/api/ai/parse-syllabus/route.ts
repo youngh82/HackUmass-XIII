@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import pdf from "pdf-parse";
+import { CLAUDE_KEY_HEADER, resolveClaudeApiKey } from "@/lib/ai/apiKey";
 
 const SyllabusSchema = z.object({
   categories: z.array(
@@ -42,6 +43,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Checked before reading the PDF so a missing key fails fast
+    const apiKey = resolveClaudeApiKey(
+      request.headers.get(CLAUDE_KEY_HEADER),
+      process.env
+    );
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          error:
+            "Add your Claude API key to import a syllabus. You can create one at console.anthropic.com.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Extract text from PDF
     let pdfText: string;
     try {
@@ -61,15 +77,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.CLAUDE_API_KEY) {
-      console.error("CLAUDE_API_KEY is not set");
-      return NextResponse.json(
-        { error: "AI service not configured. Please set CLAUDE_API_KEY." },
-        { status: 500 }
-      );
-    }
-
-    const anthropic = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY });
+    const anthropic = new Anthropic({ apiKey });
 
     const message = await anthropic.beta.messages.parse({
       model: "claude-opus-5",
@@ -121,17 +129,27 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Syllabus parsing error:", error);
 
-    if (error instanceof Anthropic.AuthenticationError) {
+    if (
+      error instanceof Anthropic.AuthenticationError ||
+      error instanceof Anthropic.PermissionDeniedError
+    ) {
       return NextResponse.json(
-        { error: "AI API key is invalid or missing" },
-        { status: 500 }
+        {
+          error:
+            "Claude rejected this API key. Check that it's copied correctly and still active.",
+        },
+        { status: 401 }
       );
     }
     if (error instanceof Anthropic.RateLimitError) {
       return NextResponse.json(
-        { error: "AI service is busy. Please try again in a minute." },
+        { error: "Your Claude API key hit its rate limit. Try again in a minute." },
         { status: 429 }
       );
+    }
+    // e.g. "Your credit balance is too low" - the API's own wording is clearest
+    if (error instanceof Anthropic.BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json(
