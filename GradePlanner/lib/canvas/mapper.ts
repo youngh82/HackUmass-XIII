@@ -22,31 +22,6 @@ export function mapCanvasAssignment(assignment: CanvasAssignment) {
   // Attendance 감지: 이름에 "attendance"가 포함되는 경우
   const isAttendance = assignment.name.toLowerCase().includes("attendance");
 
-  // 🔍 DEBUG: Canvas API 원본 submission 데이터 로깅
-  const isQuizOrLab = assignment.name.toLowerCase().includes("quiz") || 
-                       assignment.name.toLowerCase().includes("lab");
-  
-  if (isQuizOrLab) {
-    console.log("\n" + "=".repeat(60));
-    console.log(`📝 Assignment: ${assignment.name}`);
-    console.log(`   Points Possible: ${assignment.points_possible}`);
-    console.log(`   Submission exists: ${assignment.submission ? 'YES' : 'NO'}`);
-    
-    if (assignment.submission) {
-      console.log(`   Submission details:`);
-      console.log(`      workflow_state: ${assignment.submission.workflow_state}`);
-      console.log(`      score: ${assignment.submission.score}`);
-      console.log(`      submitted_at: ${assignment.submission.submitted_at}`);
-      console.log(`      graded_at: ${assignment.submission.graded_at}`);
-      console.log(`      missing: ${assignment.submission.missing}`);
-      console.log(`      late: ${assignment.submission.late}`);
-      console.log(`      excused: ${assignment.submission.excused}`);
-    } else {
-      console.log(`   ⚠️  NO SUBMISSION OBJECT - assignment.submission is null/undefined`);
-    }
-    console.log("=".repeat(60));
-  }
-
   // Check if assignment has been graded/submitted
   // 🔍 수정: score가 있으면 제출된 것으로 간주 (workflow_state에 의존하지 않음)
   const hasSubmission =
@@ -62,13 +37,6 @@ export function mapCanvasAssignment(assignment: CanvasAssignment) {
     earned = assignment.submission.score;
   }
   // Otherwise leave as null (not submitted/graded yet)
-  
-  // 🔍 DEBUG: earned 값 최종 결과
-  if (isQuizOrLab) {
-    console.log(`   ✅ hasSubmission: ${hasSubmission}`);
-    console.log(`   ✅ Final earned value: ${earned}`);
-    console.log(`   ✅ Will be counted in grade: ${hasSubmission ? 'YES' : 'NO'}\n`);
-  }
 
   return {
     id: assignment.id.toString(),
@@ -110,7 +78,15 @@ export function mapAssignmentGroup(
     dropHighest: group.rules?.drop_highest || 0,
     isAttendance: isAttendanceCategory,
     assignments:
-      group.assignments?.map((a) => ({
+      group.assignments
+        ?.filter(
+          // Canvas leaves these out of the final grade entirely
+          (a) =>
+            !a.omit_from_final_grade &&
+            !a.submission?.excused &&
+            a.grading_type !== "not_graded"
+        )
+        .map((a) => ({
         ...mapCanvasAssignment(a),
         category: group.name,
         isAttendance:

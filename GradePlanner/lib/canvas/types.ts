@@ -30,6 +30,7 @@ export interface CanvasCourse {
   end_at?: string | null;
   enrollment_term_id?: number;
   grading_standard_id?: number | null;
+  apply_assignment_group_weights?: boolean;
   grade_passback_setting?: string | null;
   created_at?: string;
   enrollments?: CanvasEnrollment[];

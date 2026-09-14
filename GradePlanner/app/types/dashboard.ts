@@ -3,6 +3,7 @@
 export interface CategoryItem {
   name: string;
   score: number | null;
+  maxScore?: number; // Canvas points possible; used to weight items within a category
   isAttendance?: boolean; // 출석 항목 여부 (0 또는 100만 가능)
   _editingName?: boolean;
   _editingScore?: boolean;

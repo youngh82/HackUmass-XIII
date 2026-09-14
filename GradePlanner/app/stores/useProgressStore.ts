@@ -8,6 +8,7 @@ import {
   calculateCurrentGradeFromCategories,
   calculateMaxPossibleGradeFromCategories,
   calculateMinPossibleGradeFromCategories,
+  getItemWeights,
 } from "@/lib/calculations/gradeUtils";
 
 interface ProgressStore {
@@ -76,9 +77,12 @@ export const useProgressStore = create<ProgressStore>()((set, get) => ({
       const totalItemsInCategory = items.length;
       if (totalItemsInCategory === 0) return;
 
-      const itemWeight = cat.weight / totalItemsInCategory;
+      const weights = getItemWeights(cat);
 
-      items.forEach((item: any) => {
+      items.forEach((item: any, i: number) => {
+        const itemWeight = weights[i];
+        if (itemWeight === 0) return; // Can't move the grade, so no slider
+
         if (
           item.score === null ||
           item.score === undefined ||
@@ -318,9 +322,10 @@ export const useProgressStore = create<ProgressStore>()((set, get) => ({
       const totalItemsInCategory = items.length;
       if (totalItemsInCategory === 0) return;
 
-      const itemWeight = cat.weight / totalItemsInCategory;
+      const weights = getItemWeights(cat);
 
-      items.forEach((item: any) => {
+      items.forEach((item: any, i: number) => {
+        const itemWeight = weights[i];
         let itemScore = 0;
 
         if (

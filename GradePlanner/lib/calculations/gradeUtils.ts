@@ -82,7 +82,33 @@ export interface Category {
 export interface CategoryItem {
   name: string;
   score: number | null;
+  maxScore?: number;
   isAttendance?: boolean;
+}
+
+/**
+ * Split a category's weight across its items. Canvas scores items within a
+ * group by points, so items are weighted by maxScore when every item has one
+ * (0-point items get no weight). Otherwise (e.g. manually created items)
+ * they share the weight equally.
+ */
+export function getItemWeights(category: {
+  weight: number;
+  items: Array<{ maxScore?: number }>;
+}): number[] {
+  const { weight, items } = category;
+  if (items.length === 0) return [];
+
+  const totalPoints = items.reduce(
+    (sum, item) => sum + (item.maxScore ?? 0),
+    0
+  );
+  const byPoints =
+    totalPoints > 0 && items.every((item) => item.maxScore !== undefined);
+
+  return items.map((item) =>
+    byPoints ? (weight * item.maxScore!) / totalPoints : weight / items.length
+  );
 }
 
 /**
@@ -99,16 +125,19 @@ export function calculateCurrentGradeFromCategories(
     // Skip categories with 0 weight
     if (category.weight === 0) return;
 
-    const gradedItems = category.items.filter(
-      (item) => item.score !== null && item.score !== undefined
-    );
+    const weights = getItemWeights(category);
+    let earned = 0;
+    let gradedWeight = 0;
+    category.items.forEach((item, i) => {
+      if (item.score === null || item.score === undefined) return;
+      earned += weights[i] * item.score;
+      gradedWeight += weights[i];
+    });
 
-    if (gradedItems.length === 0) return; // Skip categories with no graded items
+    if (gradedWeight === 0) return; // Skip categories with no graded items
 
-    // Calculate category average from graded items only
-    const categorySum = gradedItems.reduce((sum, item) => sum + item.score!, 0);
-    const categoryMax = gradedItems.length * 100;
-    const categoryPercentage = (categorySum / categoryMax) * 100;
+    // Category average over graded items, weighted by points
+    const categoryPercentage = earned / gradedWeight;
 
     totalWeightedScore += (categoryPercentage * category.weight) / 100;
     totalWeightGraded += category.weight;
@@ -121,132 +150,45 @@ export function calculateCurrentGradeFromCategories(
 }
 
 /**
+ * Project the final grade assuming every ungraded item gets `ungradedScore`.
+ * Categories without items contribute `ungradedScore` for their full weight.
+ */
+function projectGrade(categories: Category[], ungradedScore: number): number {
+  let total = 0;
+
+  categories.forEach((category) => {
+    if (category.weight === 0) return;
+
+    if (category.items.length === 0) {
+      total += (ungradedScore * category.weight) / 100;
+      return;
+    }
+
+    const weights = getItemWeights(category);
+    category.items.forEach((item, i) => {
+      total += (weights[i] * (item.score ?? ungradedScore)) / 100;
+    });
+  });
+
+  return total;
+}
+
+/**
  * Calculate maximum possible grade (ungraded items = 100)
- * This shows the best possible outcome if student gets 100% on all remaining items
  */
 export function calculateMaxPossibleGradeFromCategories(
   categories: Category[]
 ): number {
-  let totalWeightedScore = 0;
-
-  console.log(
-    "🔍 calculateMaxPossibleGrade - Input categories:",
-    categories.length
-  );
-
-  categories.forEach((category) => {
-    // Skip categories with 0 weight (not counted in final grade)
-    if (category.weight === 0) {
-      console.log(`⏭️  Skipping category "${category.name}" - Weight is 0%`);
-      return;
-    }
-
-    // If category has no items, assume 100% for that category
-    if (category.items.length === 0) {
-      const categoryPercentage = 100; // Assume 100% if no items
-      totalWeightedScore += (categoryPercentage * category.weight) / 100;
-
-      console.log(`📊 Category: ${category.name}`);
-      console.log(`   - Weight: ${category.weight}%`);
-      console.log(`   - Items: 0 (Assuming 100% - No items to grade)`);
-      console.log(`   - Category Sum: N/A`);
-      console.log(
-        `   - Weighted Score: ${(
-          (categoryPercentage * category.weight) /
-          100
-        ).toFixed(2)}`
-      );
-      return;
-    }
-
-    let categorySum = 0;
-    const categoryMax = category.items.length * 100;
-    let ungradedCount = 0;
-    let gradedCount = 0;
-    let zeroScoreCount = 0;
-
-    console.log(`\n📊 Category: ${category.name} - Detailed Items:`);
-
-    category.items.forEach((item) => {
-      if (item.score !== null && item.score !== undefined) {
-        categorySum += item.score; // Add actual score
-        gradedCount++;
-        if (item.score === 0) {
-          zeroScoreCount++;
-          console.log(`   ⚠️  "${item.name}": 0 (graded as 0)`);
-        } else {
-          console.log(`   ✅ "${item.name}": ${item.score}`);
-        }
-      } else {
-        categorySum += 100; // Assume 100 for ungraded items ✅
-        ungradedCount++;
-        console.log(`   🔵 "${item.name}": null/undefined → assuming 100`);
-      }
-    });
-
-    const categoryPercentage = (categorySum / categoryMax) * 100;
-    totalWeightedScore += (categoryPercentage * category.weight) / 100;
-
-    console.log(`   - Weight: ${category.weight}%`);
-    console.log(
-      `   - Items: ${category.items.length} (Graded: ${gradedCount}, Ungraded: ${ungradedCount}, Zero Scores: ${zeroScoreCount})`
-    );
-    console.log(
-      `   - Category Sum: ${categorySum}/${categoryMax} = ${categoryPercentage.toFixed(
-        2
-      )}%`
-    );
-    console.log(
-      `   - Weighted Score: ${(
-        (categoryPercentage * category.weight) /
-        100
-      ).toFixed(2)}`
-    );
-  });
-
-  console.log(
-    `\n✅ Total Max Possible Grade: ${totalWeightedScore.toFixed(2)}%\n`
-  );
-
-  return totalWeightedScore;
+  return projectGrade(categories, 100);
 }
 
 /**
  * Calculate minimum possible grade (ungraded items = 0)
- * This shows the worst possible outcome if student gets 0% on all remaining items
  */
 export function calculateMinPossibleGradeFromCategories(
   categories: Category[]
 ): number {
-  let totalWeightedScore = 0;
-
-  categories.forEach((category) => {
-    // Skip categories with 0 weight
-    if (category.weight === 0) return;
-
-    // If category has no items, assume 0% for that category
-    if (category.items.length === 0) {
-      const categoryPercentage = 0; // Assume 0% if no items
-      totalWeightedScore += (categoryPercentage * category.weight) / 100;
-      return;
-    }
-
-    let categorySum = 0;
-    const categoryMax = category.items.length * 100;
-
-    category.items.forEach((item) => {
-      if (item.score !== null && item.score !== undefined) {
-        categorySum += item.score; // Add actual score
-      } else {
-        categorySum += 0; // Assume 0 for ungraded items
-      }
-    });
-
-    const categoryPercentage = (categorySum / categoryMax) * 100;
-    totalWeightedScore += (categoryPercentage * category.weight) / 100;
-  });
-
-  return totalWeightedScore;
+  return projectGrade(categories, 0);
 }
 
 /**

@@ -3,6 +3,7 @@
 
 import { create } from 'zustand';
 import { Category, CategoryItem, DEFAULT_CATEGORIES } from '@/app/types/dashboard';
+import { getItemWeights } from '@/lib/calculations/gradeUtils';
 
 interface CategoryStore {
   categories: Category[];
@@ -218,9 +219,10 @@ export const useCategoryStore = create<CategoryStore>()((set, get) => ({
       
       if (totalItems === 0) return;
       
-      const itemWeight = cat.weight / totalItems;
-      
-      cat.items.forEach((item) => {
+      const weights = getItemWeights(cat);
+
+      cat.items.forEach((item, i) => {
+        const itemWeight = weights[i];
         if (item.score !== null && item.score !== undefined) {
           // Graded item: add actual score to both min and max
           const contribution = (itemWeight / 100) * item.score;
