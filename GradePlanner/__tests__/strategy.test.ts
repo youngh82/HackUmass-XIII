@@ -2,6 +2,14 @@ import { describe, test, expect } from 'vitest';
 import { proportionalStrategy, equalStrategy } from '@/app/types/strategy';
 import { UngradedItem } from '@/app/types/dashboard';
 
+describe('Strategy labels', () => {
+  // The UI shows `name`, so it must describe what `calculate` actually does
+  test('names match their calculation logic', () => {
+    expect(proportionalStrategy.name).toBe('Proportional Distribution');
+    expect(equalStrategy.name).toBe('Equal Distribution');
+  });
+});
+
 describe('Proportional Distribution Strategy', () => {
   test('should distribute scores proportionally based on item weights', () => {
     // Example: 3 ungraded items with different weights

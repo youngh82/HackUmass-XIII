@@ -1,5 +1,5 @@
 // strategy.ts - Grade Strategy Types
-export type StrategyType = "proportional" | "equal" | "custom";
+export type StrategyType = "proportional" | "equal";
 
 export interface Strategy {
   id: StrategyType;
@@ -11,9 +11,9 @@ export interface Strategy {
 // Proportional Strategy - 비례 배분 전략 (Python Proportional Distribution 완전 구현)
 export const proportionalStrategy: Strategy = {
   id: "proportional",
-  name: "Equal Distribution",
+  name: "Proportional Distribution",
   description:
-    "Distribute deductions equally across all items (균등 감점)",
+    "Aim for the same score on every remaining item, so heavier items absorb more of the allowed loss",
   calculate: (ungradedItems, totalDeductiblePoints) => {
     if (totalDeductiblePoints <= 0) {
       return ungradedItems.map((item) => ({
@@ -142,8 +142,9 @@ export const proportionalStrategy: Strategy = {
 // Equal Strategy - 균등 감점 + 희생 전략 (Python Equal Distribution 완전 구현)
 export const equalStrategy: Strategy = {
   id: "equal",
-  name: "Proportional Distribution",
-  description: "Distribute deductions proportionally based on item weights (비례 배분)",
+  name: "Equal Distribution",
+  description:
+    "Give up the same grade points on every remaining item; small items may drop to 0",
   calculate: (ungradedItems, totalDeductiblePoints) => {
     if (totalDeductiblePoints <= 0 || ungradedItems.length === 0) {
       return ungradedItems.map((item) => ({
@@ -313,22 +314,10 @@ export const equalStrategy: Strategy = {
   },
 };
 
-// Custom Strategy - 사용자 정의 전략 (나중에 추가 가능)
-export const customStrategy: Strategy = {
-  id: "custom",
-  name: "Custom Strategy",
-  description: "Define your own distribution logic",
-  calculate: (ungradedItems, totalDeductiblePoints) => {
-    // 기본적으로 proportional과 동일하게 동작
-    return proportionalStrategy.calculate(ungradedItems, totalDeductiblePoints);
-  },
-};
-
 // 사용 가능한 모든 전략
 export const AVAILABLE_STRATEGIES: Strategy[] = [
   proportionalStrategy,
   equalStrategy,
-  customStrategy,
 ];
 
 // 전략 찾기 헬퍼 함수

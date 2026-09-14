@@ -302,11 +302,24 @@ export default function GradeStrategy() {
                     currentStrategy === strategy.id ? "active" : ""
                   }`}
                   onClick={() => handleStrategyChange(strategy.id)}
-                  title={strategy.description}
+                  aria-pressed={currentStrategy === strategy.id}
                 >
                   {strategy.name}
                 </button>
               ))}
+            </div>
+            {/* Always visible so the choice is understandable on touch devices */}
+            <div
+              style={{
+                fontSize: "13px",
+                color: "var(--txt-muted)",
+                marginTop: "8px",
+              }}
+            >
+              {
+                AVAILABLE_STRATEGIES.find((s) => s.id === currentStrategy)
+                  ?.description
+              }
             </div>
           </div>
 
