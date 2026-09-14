@@ -9,7 +9,8 @@ export default function CategoryList() {
   const addCategory = useCategoryStore((state) => state.addCategory);
   
   const totalWeight = categories.reduce((sum, cat) => sum + cat.weight, 0);
-  const isWeightValid = totalWeight === 100;
+  // Tolerate float drift from derived weights like 33.3 + 33.3 + 33.4
+  const isWeightValid = Math.abs(totalWeight - 100) < 0.01;
   
   return (
     <>
@@ -38,7 +39,7 @@ export default function CategoryList() {
         fontSize: '14px', 
         color: 'var(--txt-muted)' 
       }}>
-        <b>Total Weight:</b> <span id="totalWeight">{totalWeight}</span>% 
+        <b>Total Weight:</b> <span id="totalWeight">{parseFloat(totalWeight.toFixed(1))}</span>% 
         {!isWeightValid && (
           <span 
             id="weightWarning" 

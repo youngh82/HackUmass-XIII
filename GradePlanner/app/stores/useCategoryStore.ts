@@ -8,7 +8,11 @@ import { getItemWeights } from '@/lib/calculations/gradeUtils';
 interface CategoryStore {
   categories: Category[];
   nextCategoryId: number;
-  
+  // Course whose Canvas data is in `categories`; survives page remounts so
+  // returning to a course doesn't overwrite the user's edits
+  loadedCourseId: string | null;
+  setLoadedCourseId: (courseId: string) => void;
+
   // Actions
   setCategories: (categories: Category[]) => void;
   addCategory: () => void;
@@ -40,8 +44,16 @@ interface CategoryStore {
 export const useCategoryStore = create<CategoryStore>()((set, get) => ({
   categories: DEFAULT_CATEGORIES,
   nextCategoryId: 1,
-  
-  setCategories: (categories: Category[]) => set({ categories }),
+  loadedCourseId: null,
+
+  setLoadedCourseId: (courseId: string) => set({ loadedCourseId: courseId }),
+
+  setCategories: (categories: Category[]) =>
+    set({
+      categories,
+      // Keep IDs from addCategory unique after the list is replaced
+      nextCategoryId: Math.max(0, ...categories.map((c) => c.id)) + 1,
+    }),
   
   addCategory: () => {
     const { categories, nextCategoryId } = get();

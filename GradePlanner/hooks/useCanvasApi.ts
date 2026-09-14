@@ -79,6 +79,7 @@ export function useCourseAssignments(courseId: string | null) {
     categories: data?.categories || [],
     courseName: data?.courseName,
     isLoading,
+    isLoaded: data !== undefined,
     isError: error,
     error,
     refresh: mutate,

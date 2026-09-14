@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useCategoryStore } from "@/app/stores/useCategoryStore";
 import { useSetupStore } from "@/app/stores/useSetupStore";
@@ -40,6 +40,7 @@ export default function CourseDashboardPage() {
     categories,
     courseName: apiCourseName,
     isLoading,
+    isLoaded,
     isError,
     error,
     refresh,
@@ -78,26 +79,18 @@ export default function CourseDashboardPage() {
     }
   }, [apiCourseName, courseId]);
 
-  // Process and store categories from SWR data
-  useEffect(() => {
-    if (!isLoading && categories && categories.length > 0) {
-      console.log("Canvas API Response:", { categories }); // Debug log
-
-      const formattedCategories = categories.map((cat: any, index: number) => {
-        console.log("Processing category:", cat); // Debug log
-
-        return {
+  // Replace the dashboard with Canvas data. Only called when a course is
+  // first loaded or the user explicitly reloads, so SWR revalidations
+  // never overwrite the user's edits.
+  const applyCanvasData = useCallback(
+    (canvasCategories: any[]) => {
+      const formattedCategories = canvasCategories.map(
+        (cat: any, index: number) => ({
           id: index + 1, // Use simple incremental ID
           name: cat.name,
           weight: cat.weight || 0,
           items:
             cat.assignments?.map((assignment: any) => {
-              console.log(
-                "Processing assignment:",
-                assignment.name,
-                assignment
-              ); // Debug log
-
               // Convert score to percentage (score/maxScore * 100) with 1 decimal place
               // Only use score if the assignment has actually been graded
               // If earned is null, treat as ungraded (not yet taken)
@@ -126,37 +119,40 @@ export default function CourseDashboardPage() {
                 missing: assignment.missing || false,
               };
             }) || [],
-          editingName: false,
-          editingWeight: false,
-          showItems: true,
-        };
-      });
-
-      console.log("Formatted categories:", formattedCategories); // Debug log
+        })
+      );
       setCategories(formattedCategories);
-      
+
       // Also sync to setupCategories for syllabus merge
-      const setupCategoriesData = categories.map((cat: any, index: number) => ({
-        id: index + 1,
-        name: cat.name,
-        weight: cat.weight || 0,
-        count: cat.assignments?.length || 0,
-      }));
-      console.log("Setup categories synced:", setupCategoriesData); // Debug log
-      setSetupCategories(setupCategoriesData);
-      
-      setToast({
-        message: "Course data loaded successfully!",
-        type: "success",
-      });
-    } else if (!isLoading && categories && categories.length === 0) {
-      console.log("No categories found in response");
-      setToast({
-        message: "No assignment categories found for this course",
-        type: "warning",
-      });
-    }
-  }, [categories, isLoading, setCategories, setSetupCategories]);
+      setSetupCategories(
+        canvasCategories.map((cat: any, index: number) => ({
+          id: index + 1,
+          name: cat.name,
+          weight: cat.weight || 0,
+          count: cat.assignments?.length || 0,
+        }))
+      );
+
+      setToast(
+        canvasCategories.length > 0
+          ? { message: "Course data loaded successfully!", type: "success" }
+          : {
+              message: "No assignment categories found for this course",
+              type: "warning",
+            }
+      );
+    },
+    [setCategories, setSetupCategories]
+  );
+
+  // Apply Canvas data once per course (tracked in the store so it survives
+  // leaving and re-entering the page)
+  useEffect(() => {
+    const { loadedCourseId, setLoadedCourseId } = useCategoryStore.getState();
+    if (!isLoaded || loadedCourseId === courseId) return;
+    setLoadedCourseId(courseId);
+    applyCanvasData(categories);
+  }, [isLoaded, courseId, categories, applyCanvasData]);
 
   // Show error toast
   useEffect(() => {
@@ -185,8 +181,10 @@ export default function CourseDashboardPage() {
     router.push("/courses");
   };
 
-  const handleRefreshData = () => {
-    refresh();
+  // Explicit reload: discards local edits in favour of fresh Canvas data
+  const handleRefreshData = async () => {
+    const fresh = await refresh();
+    if (fresh) applyCanvasData(fresh.categories);
   };
 
   return (
@@ -241,8 +239,9 @@ export default function CourseDashboardPage() {
                 <button
                   onClick={handleRefreshData}
                   className="nav-link nav-link-button"
+                  title="Replace your edits with the latest data from Canvas"
                 >
-                  Refresh Data
+                  Reload from Canvas
                 </button>
               </li>
             </ul>
