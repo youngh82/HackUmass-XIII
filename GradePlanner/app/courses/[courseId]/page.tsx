@@ -33,6 +33,9 @@ export default function CourseDashboardPage() {
 
   const setCategories = useCategoryStore((state) => state.setCategories);
   const setSetupCategories = useSetupStore((state) => state.setSetupCategories);
+  const hasWeights = useCategoryStore((state) =>
+    state.categories.some((cat) => cat.weight > 0)
+  );
   const { isAuthenticated } = useAuthStore();
 
   // Use SWR for data fetching
@@ -331,11 +334,30 @@ export default function CourseDashboardPage() {
               onClose={() => setIsSetupModalOpen(false)}
             />
 
-            {/* Progress Bar */}
-            <ProgressBar />
+            {hasWeights ? (
+              <>
+                {/* Progress Bar */}
+                <ProgressBar />
 
-            {/* Grade Strategy */}
-            <GradeStrategy />
+                {/* Grade Strategy */}
+                <GradeStrategy />
+              </>
+            ) : (
+              <div className="card empty-state">
+                <h3>Nothing to plan yet</h3>
+                <p>
+                  Canvas has no graded assignments or category weights for this
+                  course yet. Add your grading categories from the syllabus to
+                  start planning.
+                </p>
+                <button
+                  className="btn btn--primary"
+                  onClick={() => setIsSetupModalOpen(true)}
+                >
+                  Set up course
+                </button>
+              </div>
+            )}
 
             {/* Categories */}
             <div className="card">

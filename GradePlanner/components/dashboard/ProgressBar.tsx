@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useCategoryStore } from "@/app/stores/useCategoryStore";
 import { useProgressStore } from "@/app/stores/useProgressStore";
 import { GRADE_MAP, GRADE_OPTIONS, TargetGrade } from "@/app/types/dashboard";
+import { percentageToGrade } from "@/lib/calculations/gradeUtils";
 
 export default function ProgressBar() {
   // Subscribe to categories to trigger re-render when they change
@@ -18,6 +19,8 @@ export default function ProgressBar() {
   );
   const setTargetGrade = useProgressStore((state) => state.setTargetGrade);
   const maxPossibleGrade = useProgressStore((state) => state.maxPossibleGrade);
+  const minPossibleGrade = useProgressStore((state) => state.minPossibleGrade);
+  const currentGrade = useProgressStore((state) => state.currentGrade);
   const calculateAllGrades = useProgressStore(
     (state) => state.calculateAllGrades
   );
@@ -31,11 +34,6 @@ export default function ProgressBar() {
   // Calculate max possible grade (with non-graded = 100)
   useEffect(() => {
     if (categories.length > 0) {
-      console.log(
-        "🎯 ProgressBar: Calling calculateAllGrades with",
-        categories.length,
-        "categories"
-      );
       calculateAllGrades(categories);
     }
   }, [categories]);
@@ -96,9 +94,42 @@ export default function ProgressBar() {
     return maxPossibleGrade >= threshold;
   };
 
+  const hasGrades = categories.some(
+    (cat) =>
+      cat.weight > 0 &&
+      cat.items.some((item) => item.score !== null && item.score !== undefined)
+  );
+
   return (
     <div className="card">
       <h3>Grade Range Projection</h3>
+
+      {/* Where the grade stands now, and how far it can move */}
+      <div className="grade-stats">
+        <div className="grade-stat grade-stat--primary">
+          <span className="grade-stat-label">Current Grade</span>
+          <span className="grade-stat-value">
+            {hasGrades ? `${currentGrade.toFixed(1)}%` : "—"}
+          </span>
+          <span className="grade-stat-sub">
+            {hasGrades ? percentageToGrade(currentGrade) : "No graded work yet"}
+          </span>
+        </div>
+        <div className="grade-stat">
+          <span className="grade-stat-label">Lowest Possible</span>
+          <span className="grade-stat-value">
+            {minPossibleGrade.toFixed(1)}%
+          </span>
+          <span className="grade-stat-sub">0 on everything left</span>
+        </div>
+        <div className="grade-stat">
+          <span className="grade-stat-label">Highest Possible</span>
+          <span className="grade-stat-value">
+            {Math.min(100, maxPossibleGrade).toFixed(1)}%
+          </span>
+          <span className="grade-stat-sub">100 on everything left</span>
+        </div>
+      </div>
 
       {/* Progress Bar */}
       <div className="progress-container">
@@ -132,12 +163,6 @@ export default function ProgressBar() {
               height={20}
               className="progress-pin-icon"
             />
-          </div>
-          <div className="progress-label">
-            <span className="progress-label-text">Maximum Possible Grade</span>
-            <span className="progress-label-value" id="maxVal">
-              {maxPercentage.toFixed(1)}%
-            </span>
           </div>
         </div>
       </div>
