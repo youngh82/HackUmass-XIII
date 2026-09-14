@@ -164,6 +164,19 @@
   line-height: 1.5;
 }
 
+.demo-cta {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: var(--txt-muted);
+}
+
 .modal-close-wrapper {
   text-align: right;
 }

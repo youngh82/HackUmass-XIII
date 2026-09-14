@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Category } from '@/app/types/dashboard';
 import { useCategoryStore } from '@/app/stores/useCategoryStore';
 import CategoryItem from './CategoryItem';
+import { calculateCategoryAverage } from '@/lib/calculations/gradeUtils';
 import Image from 'next/image';
 
 interface CategoryCardProps {
@@ -41,12 +42,9 @@ export default function CategoryCard({ category }: CategoryCardProps) {
     }
   }, [category._editingWeight]);
 
-  // Calculate current average
-  const gradedItems = category.items.filter((item) => item.score !== null);
-  const avg = gradedItems.length
-    ? gradedItems.reduce((sum, item) => sum + (item.score || 0), 0) / gradedItems.length
-    : 0;
-  const avgText = gradedItems.length > 0 ? `Current Average: ${avg.toFixed(1)}%` : 'No grades yet';
+  // Point-weighted, so it agrees with the grade calculation
+  const avg = calculateCategoryAverage(category);
+  const avgText = avg !== null ? `Current Average: ${avg.toFixed(1)}%` : 'No grades yet';
 
   const handleNameDoubleClick = () => {
     setEditingName(category.id, true);

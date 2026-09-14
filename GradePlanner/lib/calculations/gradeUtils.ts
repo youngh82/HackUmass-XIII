@@ -112,6 +112,27 @@ export function getItemWeights(category: {
 }
 
 /**
+ * Average of a category's graded items, weighted by points like Canvas.
+ * Independent of the category's own weight, so 0% categories still show one.
+ * Returns null when nothing in the category is graded.
+ */
+export function calculateCategoryAverage(category: {
+  items: Array<{ score: number | null; maxScore?: number }>;
+}): number | null {
+  const weights = getItemWeights({ weight: 100, items: category.items });
+  let earned = 0;
+  let gradedWeight = 0;
+
+  category.items.forEach((item, i) => {
+    if (item.score === null || item.score === undefined) return;
+    earned += weights[i] * item.score;
+    gradedWeight += weights[i];
+  });
+
+  return gradedWeight > 0 ? earned / gradedWeight : null;
+}
+
+/**
  * Calculate current grade from categories (only graded items)
  * Ungraded items are excluded from the calculation
  */

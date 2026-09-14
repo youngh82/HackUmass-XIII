@@ -6,6 +6,7 @@ import Image from "next/image";
 import Toast from "@/components/shared/Toast";
 import { validateToken } from "@/lib/validation";
 import { useAuthStore } from "@/app/stores/useAuthStore";
+import { DEMO_BASE_URL, DEMO_TOKEN } from "@/lib/demo/data";
 import "@/components/shared/global.css";
 import "@/components/auth/index.css";
 
@@ -125,6 +126,12 @@ export default function HomePage() {
     }
   };
 
+  // Explore with sample courses; ApiClient serves them locally
+  const handleTryDemo = () => {
+    setAuth(DEMO_TOKEN, DEMO_BASE_URL, "Demo Student", "demo");
+    router.push("/courses");
+  };
+
   return (
     <>
       <section className="hero">
@@ -219,6 +226,17 @@ export default function HomePage() {
           <div className="subhint">
             Your token is saved only in this browser and used only to read
             your Canvas grades. Log out to remove it.
+          </div>
+          <div className="demo-cta">
+            <span>No Canvas account handy?</span>
+            <button
+              type="button"
+              className="btn btn--outline"
+              onClick={handleTryDemo}
+              disabled={loading}
+            >
+              Try the demo
+            </button>
           </div>
         </div>
         <div className="hero-gradient">

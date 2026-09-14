@@ -98,6 +98,8 @@ export default function ProgressBar() {
     return maxPossibleGrade >= threshold;
   };
 
+  const targetAchievable = isGradeAchievable(currentTargetGrade);
+
   const hasGrades = categories.some(
     (cat) =>
       cat.weight > 0 &&
@@ -148,32 +150,39 @@ export default function ProgressBar() {
               }}
             ></div>
           </div>
-          <div
-            className="progress-pin"
-            id="targetPin"
-            style={{ display: "flex", left: `${pinPosition}%` }}
-          >
+          {/* No pin when even the lowest listed grade is out of reach */}
+          {targetAchievable && (
             <div
-              className="progress-pin-label"
-              id="targetPinLabel"
-              title={`${currentTargetGrade} ≥ ${targetThreshold}%`}
+              className="progress-pin"
+              id="targetPin"
+              style={{ display: "flex", left: `${pinPosition}%` }}
             >
-              {currentTargetGrade}
+              <div
+                className="progress-pin-label"
+                id="targetPinLabel"
+                title={`${currentTargetGrade} ≥ ${targetThreshold}%`}
+              >
+                {currentTargetGrade}
+              </div>
+              <Image
+                src="/icons/pin.svg"
+                alt="target"
+                width={20}
+                height={20}
+                className="progress-pin-icon"
+              />
             </div>
-            <Image
-              src="/icons/pin.svg"
-              alt="target"
-              width={20}
-              height={20}
-              className="progress-pin-icon"
-            />
-          </div>
+          )}
         </div>
       </div>
 
       {/* Grade Selection Buttons */}
       <div className="grade-select-hint">
-        Select a target letter grade to see required strategy:
+        {targetAchievable
+          ? "Select a target letter grade to see required strategy:"
+          : `Even 100% on everything left can't reach a ${
+              GRADE_OPTIONS[GRADE_OPTIONS.length - 1]
+            } (${GRADE_MAP[GRADE_OPTIONS[GRADE_OPTIONS.length - 1]]}%).`}
       </div>
       <div className="grade-options" id="gradeOptions">
         {GRADE_OPTIONS.map((grade) => {

@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import {
+  calculateCategoryAverage,
   getItemWeights,
   calculateCurrentGradeFromCategories,
   calculateMaxPossibleGradeFromCategories,
@@ -34,6 +35,26 @@ describe("getItemWeights", () => {
 
   test("returns no weights for an empty category", () => {
     expect(getItemWeights({ weight: 30, items: [] })).toEqual([]);
+  });
+});
+
+describe("calculateCategoryAverage", () => {
+  test("weights graded items by points, not a simple mean", () => {
+    // 100% on a 2-point item and 40% on an 8-point item: 52%, not 70%
+    const avg = calculateCategoryAverage({
+      items: [
+        { score: 100, maxScore: 2 },
+        { score: 40, maxScore: 8 },
+        { score: null, maxScore: 10 },
+      ],
+    });
+    expect(avg).toBeCloseTo(52);
+  });
+
+  test("returns null when nothing is graded", () => {
+    expect(
+      calculateCategoryAverage({ items: [{ score: null, maxScore: 5 }] })
+    ).toBeNull();
   });
 });
 

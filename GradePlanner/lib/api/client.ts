@@ -1,4 +1,5 @@
 import { useAuthStore } from "@/app/stores/useAuthStore";
+import { DEMO_TOKEN, getDemoResponse } from "@/lib/demo/data";
 
 export class ApiError extends Error {
   constructor(message: string, public status: number, public data?: any) {
@@ -90,6 +91,13 @@ export class ApiClient {
   }
 
   static async get<T>(endpoint: string): Promise<T> {
+    // Demo sessions never reach the server
+    if (useAuthStore.getState().token === DEMO_TOKEN) {
+      const demo = getDemoResponse<T>(endpoint);
+      if (!demo) throw new ApiError("Resource not found.", 404);
+      return demo;
+    }
+
     try {
       const response = await fetch(endpoint, {
         method: "GET",
