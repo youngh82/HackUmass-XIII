@@ -8,6 +8,17 @@ import {
 } from "./types";
 
 /**
+ * Error from Canvas carrying its HTTP status, so routes can tell an expired
+ * token from access to a single course being denied (e.g. a dropped class)
+ */
+export class CanvasHttpError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+    this.name = "CanvasHttpError";
+  }
+}
+
+/**
  * Canvas API Client
  * Handles all API requests to Canvas LMS
  */
@@ -49,10 +60,11 @@ export class CanvasApiClient {
           status: response.status,
         }));
 
-        throw new Error(
+        throw new CanvasHttpError(
           errorData.errors?.[0]?.message ||
             errorData.message ||
-            `Canvas API Error: ${response.status}`
+            `Canvas API Error: ${response.status}`,
+          response.status
         );
       }
 

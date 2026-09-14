@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CanvasApiClient } from "@/lib/canvas/client";
+import { CanvasApiClient, CanvasHttpError } from "@/lib/canvas/client";
 import { mapAssignmentGroup } from "@/lib/canvas/mapper";
 
 type MappedGroup = ReturnType<typeof mapAssignmentGroup>;
@@ -68,6 +68,21 @@ export async function GET(
       weightingScheme: weighted ? "weighted" : "points",
     });
   } catch (error) {
+    // Canvas answers 401/403 when this course is off-limits (e.g. dropped).
+    // Report 403, not 401: the client treats 401 as an expired token and logs out.
+    if (
+      error instanceof CanvasHttpError &&
+      (error.status === 401 || error.status === 403)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "You no longer have access to this course in Canvas. It may have been dropped or unpublished.",
+        },
+        { status: 403 }
+      );
+    }
+
     console.error("Assignments fetch error:", error);
     return NextResponse.json(
       {

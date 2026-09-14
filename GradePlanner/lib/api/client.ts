@@ -36,8 +36,10 @@ export class ApiClient {
 
     // 403: Forbidden
     if (response.status === 403) {
+      // Prefer the server's explanation (e.g. a dropped course)
+      const body = await response.json().catch(() => null);
       throw new ApiError(
-        "You don't have permission to access this resource.",
+        body?.error || "You don't have permission to access this resource.",
         403
       );
     }

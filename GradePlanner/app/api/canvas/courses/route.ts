@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CanvasApiClient } from "@/lib/canvas/client";
+import { CanvasApiClient, CanvasHttpError } from "@/lib/canvas/client";
 import { mapCanvasCourse } from "@/lib/canvas/mapper";
 
 // GET /api/canvas/courses
@@ -29,6 +29,15 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ courses });
   } catch (error) {
+    // Listing the user's own courses only fails with 401 when the token is
+    // bad, so pass it through and let the client log out
+    if (error instanceof CanvasHttpError && error.status === 401) {
+      return NextResponse.json(
+        { error: "Canvas token is invalid or expired" },
+        { status: 401 }
+      );
+    }
+
     console.error("Courses fetch error:", error);
     return NextResponse.json(
       {
